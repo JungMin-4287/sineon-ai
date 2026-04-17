@@ -75,14 +75,30 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# AI 모델 초기화 함수
 def get_gemini_response(prompt, history):
     model = genai.GenerativeModel(
         model_name=selected_model,
         system_instruction=SYSTEM_PROMPT
     )
     chat = model.start_chat(history=history)
-    response = chat.send_message(prompt, stream=True)
-    return response
+    
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = chat.send_message(prompt, stream=True)
+            return response
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                wait_seconds = 60
+                import re
+                match = re.search(r'retry in (\d+)', str(e))
+                if match:
+                    wait_seconds = int(match.group(1)) + 5
+                st.warning(f"⏳ API 한도 초과. {wait_seconds}초 후 자동 재시도합니다... ({attempt+1}/{max_retries})")
+                time.sleep(wait_seconds)
+            else:
+                raise e
 
 # ==========================================
 # 4. 사용자 입력 및 답변 생성
