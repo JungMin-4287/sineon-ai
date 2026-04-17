@@ -45,11 +45,21 @@ st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_ico
 # 사이드바 설정 (모델 선택 등)
 with st.sidebar:
     st.header("⚙️ 설정")
-    selected_model = st.selectbox(
+    # 모델 명칭에 -latest를 붙여 404 오류 방지 및 최신 버전 유지
+    selected_model_alias = st.selectbox(
         "모델 선택",
-        ["gemini-1.5-pro", "gemini-1.5-flash"],
-        help="Pro는 추론 능력이 뛰어나고, Flash는 속도가 빠릅니다."
+        ["Gemini 1.5 Pro (고성능)", "Gemini 1.5 Flash (고속)"],
+        index=0,
+        help="Pro는 복잡한 계획서 작성에 유리하며, Flash는 빠른 응답이 특징입니다."
     )
+    
+    # 실제 API 호출에 사용할 모델 ID 매핑
+    model_id_map = {
+        "Gemini 1.5 Pro (고성능)": "gemini-1.5-pro-latest",
+        "Gemini 1.5 Flash (고속)": "gemini-1.5-flash-latest"
+    }
+    selected_model = model_id_map[selected_model_alias]
+    
     if st.button("대화 기록 초기화"):
         st.session_state.messages = []
         st.rerun()
@@ -68,13 +78,14 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# AI 모델 초기화 (세션당 1회 또는 모델 변경 시)
+# AI 모델 초기화 함수
 def get_gemini_response(prompt, history):
+    # 모델 생성 시 오류 방지를 위해 명확한 ID 사용
     model = genai.GenerativeModel(
         model_name=selected_model,
         system_instruction=SYSTEM_PROMPT
     )
-    # 채팅 모드 시작 (이전 대화 맥락 포함)
+    # 채팅 모드 시작
     chat = model.start_chat(history=history)
     response = chat.send_message(prompt, stream=True)
     return response
@@ -94,23 +105,27 @@ if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
         full_response = ""
         
         try:
-            # 이전 대화 맥락을 API 형식에 맞게 변환 (role 변환: assistant -> model)
-            chat_history = [
-                {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
-                for m in st.session_state.messages[:-1]
-            ]
+            # 이전 대화 맥락 변환
+            chat_history = []
+            for m in st.session_state.messages[:-1]:
+                role = "user" if m["role"] == "user" else "model"
+                chat_history.append({"role": role, "parts": [m["content"]]})
             
             response_stream = get_gemini_response(user_input, chat_history)
             
             for chunk in response_stream:
-                full_response += chunk.text
-                # 마크다운 깨짐 방지를 위해 스트리밍 중에는 커서를 텍스트 뒤에만 붙임
-                placeholder.markdown(full_response + " ▌")
+                if chunk.text:
+                    full_response += chunk.text
+                    placeholder.markdown(full_response + " ▌")
             
             placeholder.markdown(full_response)
             
         except Exception as e:
-            error_msg = f"❌ 오류가 발생했습니다: {str(e)}"
+            # 404 에러 발생 시 라이브러리 업데이트 안내 등 상세 메시지 출력
+            if "404" in str(e):
+                error_msg = f"❌ 모델 호출 오류(404): 선택하신 '{selected_model}'을 찾을 수 없습니다. 라이브러리 버전이 낮거나 해당 모델의 접근 권한을 확인해주세요. (해결책: pip install -U google-generativeai)"
+            else:
+                error_msg = f"❌ 오류가 발생했습니다: {str(e)}"
             st.error(error_msg)
             full_response = error_msg
 
