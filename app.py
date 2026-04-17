@@ -41,17 +41,19 @@ st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_ico
 with st.sidebar:
     st.header("⚙️ 설정")
     
-    # 모델 선택
+    # 선생님의 디버그 목록에서 확인된 실제 모델들로 업데이트
     selected_model_alias = st.selectbox(
         "모델 선택",
-        ["Gemini 1.5 Pro (고성능)", "Gemini 1.5 Flash (속도 중심)", "Gemini 2.0 Flash (최신/고속)"],
-        index=0
+        ["Gemini 2.5 Pro (최고 성능)", "Gemini 2.5 Flash (성능/속도 균형)", "Gemini 2.0 Flash (초고속)"],
+        index=1,
+        help="목록에서 확인된 최신 모델들입니다."
     )
     
+    # 이미지에서 확인된 정확한 모델 ID 매핑
     model_id_map = {
-        "Gemini 1.5 Pro (고성능)": "models/gemini-1.5-pro",
-        "Gemini 1.5 Flash (속도 중심)": "models/gemini-1.5-flash",
-        "Gemini 2.0 Flash (최신/고속)": "models/gemini-2.0-flash-exp"
+        "Gemini 2.5 Pro (최고 성능)": "models/gemini-2.5-pro",
+        "Gemini 2.5 Flash (성능/속도 균형)": "models/gemini-2.5-flash",
+        "Gemini 2.0 Flash (초고속)": "models/gemini-2.0-flash"
     }
     selected_model = model_id_map[selected_model_alias]
     
@@ -75,14 +77,14 @@ st.info("신언중학교 선생님들을 위한 교육과정 설계 도우미입
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "선생님, 환영합니다! 👏 어떤 주제의 수업 자료를 기획해 드릴까요?"}
+        {"role": "assistant", "content": "선생님, 환영합니다! 👏 모델 설정을 최신으로 업데이트했습니다. 이제 어떤 주제를 도와드릴까요?"}
     ]
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# API 호출 함수 (선생님이 제안하신 정밀 재시도 로직 적용)
+# API 호출 함수 (정밀 재시도 로직 유지)
 def get_gemini_response_with_retry(prompt, history):
     model = genai.GenerativeModel(
         model_name=selected_model,
@@ -96,19 +98,15 @@ def get_gemini_response_with_retry(prompt, history):
             response = chat.send_message(prompt, stream=True)
             return response
         except Exception as e:
-            # 429(Resource Exhausted) 에러 처리
             if "429" in str(e) and attempt < max_retries - 1:
-                # 오류 메시지에서 retry in (\d+) 추출, 없으면 기본 60초
                 wait_seconds = 60
                 match = re.search(r'retry in (\d+)', str(e))
                 if match:
-                    # 서버가 요구한 시간보다 5초 정도 더 여유를 둡니다.
                     wait_seconds = int(match.group(1)) + 5
                 
                 st.warning(f"⏳ API 한도 초과. {wait_seconds}초 후 자동 재시도합니다... ({attempt+1}/{max_retries})")
                 time.sleep(wait_seconds)
             else:
-                # 기타 에러이거나 마지막 시도인 경우 예외 발생
                 raise e
 
 # ==========================================
@@ -140,7 +138,7 @@ if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
             
         except Exception as e:
             if "404" in str(e):
-                st.error("❌ 모델을 찾을 수 없습니다. 사이드바의 '디버그' 메뉴에서 모델명을 확인해 보세요.")
+                st.error(f"❌ '{selected_model}' 모델을 호출할 수 없습니다. 디버그 목록의 모델명과 일치하는지 다시 확인해주세요.")
             elif "429" in str(e):
                 st.error("❌ 한도가 초과되어 재시도에 실패했습니다. 잠시 후 다시 시도해 주세요.")
             else:
