@@ -1,6 +1,8 @@
 import streamlit as st
 import google.generativeai as genai
 import time
+import random
+import re  # 정규표현식 사용을 위해 추가
 
 # ==========================================
 # 1. API 키 및 모델 설정
@@ -24,16 +26,11 @@ SYSTEM_PROMPT = """
 - 모든 지도안과 활동지는 음악, 미술, 체육 활동을 중심 매개체로 하여 국어, 역사, 사회, 과학 등과 융합되어야 합니다.
 - (예: 울산 반구천 암각화 문양을 활용한 티셔츠 디자인, 태화강 국가정원 플로깅 및 생태 지도 제작 등)
 
-[중점 영역]
-1. 울산의 인물과 역사 (항일운동, 언양 3.1 만세운동 등)
-2. 울산의 생활과 문화 (지역 축제, 전통시장, 옹기마을 등)
-3. 울산의 사회와 자연환경 (산업 환경 문제, SDGs, 생태 복원 등)
-
 [작성 가이드라인]
-- 대상: 중학교 1~3학년 (발달 단계 고려)
+- 대상: 중학교 1~3학년
 - 사실성: 울산 및 언양 지역의 지명, 역사에 대해 정확한 정보만 제공할 것.
-- 어조: 기관 투자자 리포트 수준의 논리적이고 정량적인 톤을 유지하되, 학생들의 활동은 창의적이고 자기주도적이어야 함.
-- 양식: 사용자가 요청한 '세부 계획서(8차시)', '지도서(1차시)', '활동지' 양식을 엄격히 준수할 것.
+- 어조: 기관 투자자 리포트 수준의 논리적이고 정량적인 톤을 유지하되, 학생들의 활동은 창의적이어야 함.
+- 양식: '세부 계획서(8차시)', '지도서(1차시)', '활동지' 양식을 엄격히 준수할 것.
 """
 
 # ==========================================
@@ -43,24 +40,35 @@ st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_ico
 
 with st.sidebar:
     st.header("⚙️ 설정")
-    # 최신 실존 모델로 라인업 구성
+    
+    # 모델 선택
     selected_model_alias = st.selectbox(
         "모델 선택",
-        ["Gemini 1.5 Pro (심층 분석용)", "Gemini 2.0 Flash (초고속 응답)"],
-        index=0,
-        help="Pro는 복잡한 교육과정 설계에 적합하며, Flash는 빠른 초안 작성에 유리합니다."
+        ["Gemini 1.5 Pro (고성능)", "Gemini 1.5 Flash (속도 중심)", "Gemini 2.0 Flash (최신/고속)"],
+        index=0
     )
     
-    # 들여쓰기 오류가 났던 부분: model_id_map 정의
     model_id_map = {
-        "Gemini 1.5 Pro (심층 분석용)": "gemini-1.5-pro",
-        "Gemini 2.0 Flash (초고속 응답)": "gemini-2.0-flash"
+        "Gemini 1.5 Pro (고성능)": "models/gemini-1.5-pro",
+        "Gemini 1.5 Flash (속도 중심)": "models/gemini-1.5-flash",
+        "Gemini 2.0 Flash (최신/고속)": "models/gemini-2.0-flash-exp"
     }
     selected_model = model_id_map[selected_model_alias]
     
     if st.button("대화 기록 초기화"):
         st.session_state.messages = []
         st.rerun()
+
+    st.divider()
+    
+    with st.expander("🛠️ 디버그: 사용 가능한 모델 목록"):
+        st.caption("현재 API 키로 사용 가능한 모델들입니다.")
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    st.code(m.name)
+        except Exception as e:
+            st.error("목록을 불러올 수 없습니다.")
 
 st.title("🏫 두런두런 울산 탐구생활 AI 조수")
 st.info("신언중학교 선생님들을 위한 교육과정 설계 도우미입니다. 주제를 입력하시면 계획서부터 활동지까지 생성해 드립니다.")
@@ -70,13 +78,12 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": "선생님, 환영합니다! 👏 어떤 주제의 수업 자료를 기획해 드릴까요?"}
     ]
 
-# 이전 대화 출력
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# AI 모델 초기화 함수
-def get_gemini_response(prompt, history):
+# API 호출 함수 (선생님이 제안하신 정밀 재시도 로직 적용)
+def get_gemini_response_with_retry(prompt, history):
     model = genai.GenerativeModel(
         model_name=selected_model,
         system_instruction=SYSTEM_PROMPT
@@ -89,39 +96,40 @@ def get_gemini_response(prompt, history):
             response = chat.send_message(prompt, stream=True)
             return response
         except Exception as e:
+            # 429(Resource Exhausted) 에러 처리
             if "429" in str(e) and attempt < max_retries - 1:
+                # 오류 메시지에서 retry in (\d+) 추출, 없으면 기본 60초
                 wait_seconds = 60
-                import re
                 match = re.search(r'retry in (\d+)', str(e))
                 if match:
+                    # 서버가 요구한 시간보다 5초 정도 더 여유를 둡니다.
                     wait_seconds = int(match.group(1)) + 5
+                
                 st.warning(f"⏳ API 한도 초과. {wait_seconds}초 후 자동 재시도합니다... ({attempt+1}/{max_retries})")
                 time.sleep(wait_seconds)
             else:
+                # 기타 에러이거나 마지막 시도인 경우 예외 발생
                 raise e
 
 # ==========================================
 # 4. 사용자 입력 및 답변 생성
 # ==========================================
 if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
-    # 사용자 메시지 표시
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # AI 답변 생성 및 스트리밍
     with st.chat_message("assistant"):
         placeholder = st.empty()
         full_response = ""
         
         try:
-            # API 형식에 맞게 대화 기록 변환
             chat_history = []
             for m in st.session_state.messages[:-1]:
                 role = "user" if m["role"] == "user" else "model"
                 chat_history.append({"role": role, "parts": [m["content"]]})
             
-            response_stream = get_gemini_response(user_input, chat_history)
+            response_stream = get_gemini_response_with_retry(user_input, chat_history)
             
             for chunk in response_stream:
                 if chunk.text:
@@ -132,11 +140,11 @@ if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
             
         except Exception as e:
             if "404" in str(e):
-                error_msg = f"❌ 모델 호출 오류: 현재 환경에서 '{selected_model}'을(를) 찾을 수 없습니다. (pip install -U google-generativeai 확인 필요)"
+                st.error("❌ 모델을 찾을 수 없습니다. 사이드바의 '디버그' 메뉴에서 모델명을 확인해 보세요.")
+            elif "429" in str(e):
+                st.error("❌ 한도가 초과되어 재시도에 실패했습니다. 잠시 후 다시 시도해 주세요.")
             else:
-                error_msg = f"❌ 오류 발생: {str(e)}"
-            st.error(error_msg)
-            full_response = error_msg
+                st.error(f"❌ 오류 발생: {str(e)}")
+            full_response = "오류로 인해 답변을 생성할 수 없습니다."
 
-    # 답변 저장
     st.session_state.messages.append({"role": "assistant", "content": full_response})
