@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import time
 import random
-import re  # 정규표현식 사용을 위해 추가
+import re
 
 # ==========================================
 # 1. API 키 및 모델 설정
@@ -15,22 +15,33 @@ except KeyError:
     st.stop()
 
 # ==========================================
-# 2. 시스템 프롬프트
+# 2. 시스템 프롬프트 (이미지 양식 기반 최적화)
 # ==========================================
 SYSTEM_PROMPT = """
-당신은 대한민국 울산광역시 '신언중학교'의 학교자율시간 '두런두런 울산 탐구생활' 교과목 개발을 전담하는 수석 AI 어시스턴트입니다.
-선생님이 특정 팀이나 학년, 주제를 입력하면 지정된 양식에 맞추어 창의적이고 실용적인 교육 자료를 생성합니다.
+당신은 울산 '신언중학교'의 '두런두런 울산 탐구생활' 교과 개발 전담 AI입니다. 
+선생님의 요청에 따라 '융합프로젝트 개발상황표' 양식에 맞춘 핵심 내용만 간결하게 생성합니다.
 
 [교과 핵심 정체성]
-- 본 교과는 '예술·체육 주제 중심의 전 교과 융합 수업'입니다!
-- 모든 지도안과 활동지는 음악, 미술, 체육 활동을 중심 매개체로 하여 국어, 역사, 사회, 과학 등과 융합되어야 합니다.
-- (예: 울산 반구천 암각화 문양을 활용한 티셔츠 디자인, 태화강 국가정원 플로깅 및 생태 지도 제작 등)
+- 예술·체육(음악, 미술, 체육)이 중심 매개체가 되는 전 교과 융합 수업.
+- 울산/언양 지역 연계 (인물, 역사, 생활, 문화, 자연환경).
 
-[작성 가이드라인]
-- 대상: 중학교 1~3학년
-- 사실성: 울산 및 언양 지역의 지명, 역사에 대해 정확한 정보만 제공할 것.
-- 어조: 기관 투자자 리포트 수준의 논리적이고 정량적인 톤을 유지하되, 학생들의 활동은 창의적이어야 함.
-- 양식: '세부 계획서(8차시)', '지도서(1차시)', '활동지' 양식을 엄격히 준수할 것.
+[출력 지침 - 반드시 준수]
+1. **간결성**: 불필요한 설명은 빼고 표와 리스트 위주로 작성하세요.
+2. **HTML 태그 금지**: <br>, <b> 등의 HTML 태그를 절대 사용하지 마세요. 줄바꿈은 마크다운 형식을 사용합니다.
+3. **지도안 틀 구성**: 아래 [양식]의 항목만 포함하여 작성하세요.
+
+[양식: 융합프로젝트 개발상황표]
+1. 기본정보: 프로젝트 주제, 융합교과, 팀원, 핵심 질문
+2. 수업 소개: (1, 2, 3번으로 요약)
+3. 핵심 아이디어 & 학습목표: (3가지 내외)
+4. 성취기준: [교과 코드] 형태의 명확한 문장
+5. 개발 내용체계: 지식 및 이해 / 기능 및 과정 / 가치 및 태도 (표 형태)
+6. 성취수준: 상/중/하 핵심 요약
+7. 수업 흐름도: (차시, 수업 주제, 세부 활동 내용, 담당 교사 요약)
+
+[톤앤매너]
+- 교육 공학적이며 논리적인 톤.
+- 중학교 1~3학년 수준에 적합한 활동.
 """
 
 # ==========================================
@@ -40,16 +51,12 @@ st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_ico
 
 with st.sidebar:
     st.header("⚙️ 설정")
-    
-    # 선생님의 디버그 목록에서 확인된 실제 모델들로 업데이트
     selected_model_alias = st.selectbox(
         "모델 선택",
         ["Gemini 2.5 Pro (최고 성능)", "Gemini 2.5 Flash (성능/속도 균형)", "Gemini 2.0 Flash (초고속)"],
-        index=1,
-        help="목록에서 확인된 최신 모델들입니다."
+        index=1
     )
     
-    # 이미지에서 확인된 정확한 모델 ID 매핑
     model_id_map = {
         "Gemini 2.5 Pro (최고 성능)": "models/gemini-2.5-pro",
         "Gemini 2.5 Flash (성능/속도 균형)": "models/gemini-2.5-flash",
@@ -62,29 +69,27 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    
     with st.expander("🛠️ 디버그: 사용 가능한 모델 목록"):
-        st.caption("현재 API 키로 사용 가능한 모델들입니다.")
         try:
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     st.code(m.name)
-        except Exception as e:
-            st.error("목록을 불러올 수 없습니다.")
+        except:
+            st.error("목록 불가")
 
 st.title("🏫 두런두런 울산 탐구생활 AI 조수")
-st.info("신언중학교 선생님들을 위한 교육과정 설계 도우미입니다. 주제를 입력하시면 계획서부터 활동지까지 생성해 드립니다.")
+st.info("이미지 양식에 맞춘 '융합프로젝트 개발상황표' 핵심 요약을 생성합니다.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "선생님, 환영합니다! 👏 모델 설정을 최신으로 업데이트했습니다. 이제 어떤 주제를 도와드릴까요?"}
+        {"role": "assistant", "content": "선생님, 반갑습니다! 👏 프로젝트 주제를 말씀해 주시면 이미지의 개발상황표 양식에 맞춰 핵심만 정리해 드릴게요."}
     ]
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# API 호출 함수 (정밀 재시도 로직 유지)
+# API 호출 함수
 def get_gemini_response_with_retry(prompt, history):
     model = genai.GenerativeModel(
         model_name=selected_model,
@@ -99,12 +104,11 @@ def get_gemini_response_with_retry(prompt, history):
             return response
         except Exception as e:
             if "429" in str(e) and attempt < max_retries - 1:
-                wait_seconds = 60
+                wait_seconds = 30
                 match = re.search(r'retry in (\d+)', str(e))
                 if match:
-                    wait_seconds = int(match.group(1)) + 5
-                
-                st.warning(f"⏳ API 한도 초과. {wait_seconds}초 후 자동 재시도합니다... ({attempt+1}/{max_retries})")
+                    wait_seconds = int(match.group(1)) + 2
+                st.warning(f"⏳ 대기 중... {wait_seconds}초 후 재시도")
                 time.sleep(wait_seconds)
             else:
                 raise e
@@ -112,7 +116,7 @@ def get_gemini_response_with_retry(prompt, history):
 # ==========================================
 # 4. 사용자 입력 및 답변 생성
 # ==========================================
-if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
+if user_input := st.chat_input("주제를 입력하세요 (예: 1학년 1팀 마두희 축제 탐구)"):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -131,18 +135,15 @@ if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
             
             for chunk in response_stream:
                 if chunk.text:
-                    full_response += chunk.text
+                    # <br> 태그 등이 섞여 나올 경우 제거 로직 추가
+                    text = chunk.text.replace("<br>", "\n").replace("<BR>", "\n")
+                    full_response += text
                     placeholder.markdown(full_response + " ▌")
             
             placeholder.markdown(full_response)
             
         except Exception as e:
-            if "404" in str(e):
-                st.error(f"❌ '{selected_model}' 모델을 호출할 수 없습니다. 디버그 목록의 모델명과 일치하는지 다시 확인해주세요.")
-            elif "429" in str(e):
-                st.error("❌ 한도가 초과되어 재시도에 실패했습니다. 잠시 후 다시 시도해 주세요.")
-            else:
-                st.error(f"❌ 오류 발생: {str(e)}")
-            full_response = "오류로 인해 답변을 생성할 수 없습니다."
+            st.error(f"❌ 오류 발생: {str(e)}")
+            full_response = "답변 생성 실패."
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})
