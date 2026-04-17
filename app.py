@@ -88,7 +88,7 @@ if prompt := st.chat_input("수업 주제나 필요하신 양식을 입력하세
     with st.chat_message("assistant"):
         try:
             model = genai.GenerativeModel(
-                model_name="gemini-1.5-pro", # 최고 성능의 Pro 모델로 업그레이드!
+                model_name="gemini-pro", # 최고 성능의 Pro 모델로 업그레이드!
                 system_instruction=SYSTEM_PROMPT
             )
             
