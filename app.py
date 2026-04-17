@@ -14,103 +14,105 @@ except KeyError:
     st.stop()
 
 # ==========================================
-# 2. 시스템 프롬프트 (AI의 두뇌 및 규칙)
+# 2. 시스템 프롬프트 (최적화 버전)
 # ==========================================
 SYSTEM_PROMPT = """
 당신은 대한민국 울산광역시 '신언중학교'의 학교자율시간 '두런두런 울산 탐구생활' 교과목 개발을 전담하는 수석 AI 어시스턴트입니다.
 선생님이 특정 팀이나 학년, 주제를 입력하면 지정된 양식에 맞추어 창의적이고 실용적인 교육 자료를 생성합니다.
 
-[교과 기본 배경 및 핵심 정체성 (매우 중요)]
-- 이 교과의 정체성은 단순한 지역 탐구가 아닌 **'예술·체육 주제 중심의 전 교과 융합 수업'**입니다!
-- 모든 지도안, 활동지, 세부 계획서에는 반드시 음악, 미술, 체육 등의 예술/체육 활동이 중심 매개체가 되어야 합니다. 
-- 예술/체육 활동을 통해 국어, 역사, 사회, 과학, 환경 등 다른 교과 내용이 자연스럽게 융합되도록 설계하세요. (예: 환경 캠페인송 작곡하기, 치매 어르신을 위한 무드등 디자인, 생태 탐방을 결합한 산책로 개발 및 걷기 등)
-- 1. 울산의 인물과 역사 (항일만세운동, 반구천 암각화 등)
-- 2. 울산의 생활과 문화 (지역 축제, 전통시장, 명소 등)
-- 3. 울산의 사회와 자연환경 (다문화, 온산공단 등 산업 환경문제, 정책 토론 등)
-- 지역(마을) 연계 활동을 통해 궁극적으로 지속가능발전목표(SDGs) 달성을 목표로 합니다.
+[교과 핵심 정체성]
+- 본 교과는 '예술·체육 주제 중심의 전 교과 융합 수업'입니다.
+- 모든 지도안과 활동지는 음악, 미술, 체육 활동을 중심 매개체로 하여 국어, 역사, 사회, 과학 등과 융합되어야 합니다.
+- (예: 울산 반구천 암각화 문양을 활용한 티셔츠 디자인, 태화강 국가정원 플로깅(Plogging) 및 생태 지도 제작 등)
 
-[작성 지침 및 양식]
-사용자의 요청에 따라 다음 세 가지 양식 중 하나를 선택하여 작성합니다.
+[중점 영역]
+1. 울산의 인물과 역사 (항일운동, 언양 3.1 만세운동 등)
+2. 울산의 생활과 문화 (지역 축제, 전통시장, 옹기마을 등)
+3. 울산의 사회와 자연환경 (산업 환경 문제, SDGs, 생태 복원 등)
 
-1. 세부 계획서 양식 (8차시 분량)
-   - 기본 개요: 팀/학년, 주제, 관련 성취기준, 지도 중점
-   - 차시별 운영 계획 (1~8차시 표 형태)
-   - 교재 및 활동지, 교구(키트) 개발 계획 (표 형태)
-   - 예산 사용 계획 (표 형태)
-
-2. 지도서 양식 (1차시 분량)
-   - 단원명 / 학습 목표 / 도입(10분) / 전개(30분) / 정리(5분) / 평가계획
-
-3. 활동지 양식
-   - 제시문: 울산/언양 지역과 관련된 생생한 스토리나 딜레마 사례
-   - 문제 1: 사실 확인 문항
-   - 문제 2: 비판적 사고 및 창의적 해결 방안 서술형 문항
-
-[엄격한 제약 사항]
-- 대상은 중학교 1~3학년입니다.
-- 언양 지역의 구체적인 지명, 역사, 환경 문제를 다룰 때 절대 거짓 정보(Hallucination)를 지어내지 마세요.
-- 기관 투자자 리포트 수준의 논리적이고 정량적인 톤을 유지하되, 학생 활동은 창의적이어야 합니다.
+[작성 가이드라인]
+- 대상: 중학교 1~3학년 (발달 단계 고려)
+- 사실성: 울산 및 언양 지역의 지명, 역사에 대해 정확한 정보만 제공할 것.
+- 어조: 교육 공학적이며 논리적인 톤을 유지하되, 학생들의 활동은 창의적이고 자기주도적이어야 함.
+- 양식: 사용자가 요청한 '세부 계획서(8차시)', '지도서(1차시)', '활동지' 양식을 엄격히 준수할 것.
 """
 
 # ==========================================
-# 3. Streamlit 웹 화면 구성 (UI)
+# 3. Streamlit UI 및 세션 관리
 # ==========================================
-st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_icon="🏫", layout="centered")
+st.set_page_config(page_title="신언중학교 교과 어시스턴트", page_icon="🏫", layout="wide")
+
+# 사이드바 설정 (모델 선택 등)
+with st.sidebar:
+    st.header("⚙️ 설정")
+    selected_model = st.selectbox(
+        "모델 선택",
+        ["gemini-1.5-pro", "gemini-1.5-flash"],
+        help="Pro는 추론 능력이 뛰어나고, Flash는 속도가 빠릅니다."
+    )
+    if st.button("대화 기록 초기화"):
+        st.session_state.messages = []
+        st.rerun()
 
 st.title("🏫 두런두런 울산 탐구생활 AI 조수")
-st.markdown("""
-**신언중학교 선생님들을 위한 교육과정 설계 도우미입니다.**
-팀별 주제(예: '3학년 1팀 화장산 수호 프로젝트')를 입력하시면 
-**세부 계획서, 지도서, 활동지** 초안을 자동으로 척척 작성해 드립니다!
-""")
+st.info("신언중학교 선생님들을 위한 교육과정 설계 도우미입니다. 주제를 입력하시면 계획서부터 활동지까지 생성해 드립니다.")
 
-# 세션 상태(Session State)를 사용하여 대화 기록 저장
+# 세션 상태 초기화
 if "messages" not in st.session_state:
-    st.session_state.messages = []
-    # 초기 인사말
-    st.session_state.messages.append({
-        "role": "assistant", 
-        "content": "선생님, 환영합니다! 👏 어떤 팀의 수업 자료를 기획해 드릴까요?\n\n*(예시: '2학년 1팀 언양의 인물 프로젝트 8차시 세부 계획서 작성해줘')*"
-    })
+    st.session_state.messages = [
+        {"role": "assistant", "content": "선생님, 환영합니다! 👏 기획하고자 하시는 수업의 팀명과 주제를 알려주세요.\n\n*(예시: '2학년 1팀 언양의 독립운동가 탐구 8차시 계획서 써줘')*"}
+    ]
 
-# 대화 기록 화면에 출력
+# 이전 대화 출력
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 사용자 입력 처리
-if prompt := st.chat_input("수업 주제나 필요하신 양식을 입력하세요 (예: 1차시 활동지 만들어줘)"):
-    # 사용자 메시지 화면에 표시
-    st.chat_message("user").markdown(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# AI 모델 초기화 (세션당 1회 또는 모델 변경 시)
+def get_gemini_response(prompt, history):
+    model = genai.GenerativeModel(
+        model_name=selected_model,
+        system_instruction=SYSTEM_PROMPT
+    )
+    # 채팅 모드 시작 (이전 대화 맥락 포함)
+    chat = model.start_chat(history=history)
+    response = chat.send_message(prompt, stream=True)
+    return response
 
-    # AI 답변 생성
+# ==========================================
+# 4. 사용자 입력 및 답변 생성
+# ==========================================
+if user_input := st.chat_input("수업 주제나 양식을 입력하세요..."):
+    # 1. 사용자 메시지 저장 및 표시
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    # 2. AI 답변 생성 및 스트리밍 표시
     with st.chat_message("assistant"):
+        placeholder = st.empty()
+        full_response = ""
+        
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash", # 최고 성능의 Pro 모델로 업그레이드!
-                system_instruction=SYSTEM_PROMPT
-            )
+            # 이전 대화 맥락을 API 형식에 맞게 변환 (role 변환: assistant -> model)
+            chat_history = [
+                {"role": "user" if m["role"] == "user" else "model", "parts": [m["content"]]}
+                for m in st.session_state.messages[:-1]
+            ]
             
-            # stream=True 옵션으로 실시간 답변 생성
-            response = model.generate_content(prompt, stream=True)
+            response_stream = get_gemini_response(user_input, chat_history)
             
-            # 빈 공간(placeholder)을 만들고, 글자가 생성될 때마다 이 공간을 채웁니다.
-            placeholder = st.empty()
-            response_text = ""
+            for chunk in response_stream:
+                full_response += chunk.text
+                # 마크다운 깨짐 방지를 위해 스트리밍 중에는 커서를 텍스트 뒤에만 붙임
+                placeholder.markdown(full_response + " ▌")
             
-            for chunk in response:
-                response_text += chunk.text
-                # 생성 중임을 보여주는 커서(▌) 효과 추가
-                placeholder.markdown(response_text + "▌")
-                time.sleep(0.01) # 너무 빠른 렌더링 방지
-                
-            # 최종 완성된 텍스트 출력 (커서 제거)
-            placeholder.markdown(response_text)
+            placeholder.markdown(full_response)
             
         except Exception as e:
-            response_text = f"죄송합니다. 오류가 발생했습니다: {e}"
-            st.error(response_text)
-            
-    # AI 답변 저장
-    st.session_state.messages.append({"role": "assistant", "content": response_text})
+            error_msg = f"❌ 오류가 발생했습니다: {str(e)}"
+            st.error(error_msg)
+            full_response = error_msg
+
+    # 3. AI 답변 최종 저장
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
