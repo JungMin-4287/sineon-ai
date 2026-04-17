@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import time
 
 # ==========================================
 # 1. API 키 및 모델 설정
@@ -19,11 +20,14 @@ SYSTEM_PROMPT = """
 당신은 대한민국 울산광역시 '신언중학교'의 학교자율시간 '두런두런 울산 탐구생활' 교과목 개발을 전담하는 수석 AI 어시스턴트입니다.
 선생님이 특정 팀이나 학년, 주제를 입력하면 지정된 양식에 맞추어 창의적이고 실용적인 교육 자료를 생성합니다.
 
-[교과 기본 배경]
+[교과 기본 배경 및 핵심 정체성 (매우 중요)]
+- 이 교과의 정체성은 단순한 지역 탐구가 아닌 **'예술·체육 주제 중심의 전 교과 융합 수업'**입니다!
+- 모든 지도안, 활동지, 세부 계획서에는 반드시 음악, 미술, 체육 등의 예술/체육 활동이 중심 매개체가 되어야 합니다. 
+- 예술/체육 활동을 통해 국어, 역사, 사회, 과학, 환경 등 다른 교과 내용이 자연스럽게 융합되도록 설계하세요. (예: 환경 캠페인송 작곡하기, 치매 어르신을 위한 무드등 디자인, 생태 탐방을 결합한 산책로 개발 및 걷기 등)
 - 1. 울산의 인물과 역사 (항일만세운동, 반구천 암각화 등)
 - 2. 울산의 생활과 문화 (지역 축제, 전통시장, 명소 등)
 - 3. 울산의 사회와 자연환경 (다문화, 온산공단 등 산업 환경문제, 정책 토론 등)
-- 예술과 체육 교과가 융합되어 있으며, 지속가능발전목표(SDGs) 달성을 목표로 합니다.
+- 지역(마을) 연계 활동을 통해 궁극적으로 지속가능발전목표(SDGs) 달성을 목표로 합니다.
 
 [작성 지침 및 양식]
 사용자의 요청에 따라 다음 세 가지 양식 중 하나를 선택하여 작성합니다.
@@ -82,18 +86,31 @@ if prompt := st.chat_input("수업 주제나 필요하신 양식을 입력하세
 
     # AI 답변 생성
     with st.chat_message("assistant"):
-        with st.spinner("선생님의 수업 자료를 열심히 작성하고 있습니다... ✍️"):
-            try:
-                model = genai.GenerativeModel(
-                    model_name="gemini-2.5-flash-preview-09-2025",
-                    system_instruction=SYSTEM_PROMPT
-                )
-                response = model.generate_content(prompt)
-                response_text = response.text
-                st.markdown(response_text)
-            except Exception as e:
-                response_text = f"죄송합니다. 오류가 발생했습니다: {e}"
-                st.error(response_text)
+        try:
+            model = genai.GenerativeModel(
+                model_name="gemini-1.5-pro", # 최고 성능의 Pro 모델로 업그레이드!
+                system_instruction=SYSTEM_PROMPT
+            )
+            
+            # stream=True 옵션으로 실시간 답변 생성
+            response = model.generate_content(prompt, stream=True)
+            
+            # 빈 공간(placeholder)을 만들고, 글자가 생성될 때마다 이 공간을 채웁니다.
+            placeholder = st.empty()
+            response_text = ""
+            
+            for chunk in response:
+                response_text += chunk.text
+                # 생성 중임을 보여주는 커서(▌) 효과 추가
+                placeholder.markdown(response_text + "▌")
+                time.sleep(0.01) # 너무 빠른 렌더링 방지
+                
+            # 최종 완성된 텍스트 출력 (커서 제거)
+            placeholder.markdown(response_text)
+            
+        except Exception as e:
+            response_text = f"죄송합니다. 오류가 발생했습니다: {e}"
+            st.error(response_text)
             
     # AI 답변 저장
     st.session_state.messages.append({"role": "assistant", "content": response_text})
