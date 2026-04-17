@@ -47,17 +47,17 @@ with st.sidebar:
     st.header("⚙️ 설정")
     # 모델 명칭에 -latest를 붙여 404 오류 방지 및 최신 버전 유지
     selected_model_alias = st.selectbox(
-        "모델 선택",
-        ["Gemini 1.5 Pro (고성능)", "Gemini 1.5 Flash (고속)"],
-        index=0,
-        help="Pro는 복잡한 계획서 작성에 유리하며, Flash는 빠른 응답이 특징입니다."
-    )
+    "모델 선택",
+    ["Gemini 2.5 Pro (고성능)", "Gemini 2.0 Flash (고속)"],
+    index=0,
+    help="Pro는 복잡한 계획서 작성에 유리하며, Flash는 빠른 응답이 특징입니다."
+)
     
     # 실제 API 호출에 사용할 모델 ID 매핑
-    model_id_map = {
-        "Gemini 1.5 Pro (고성능)": "gemini-1.5-pro-latest",
-        "Gemini 1.5 Flash (고속)": "gemini-1.5-flash-latest"
-    }
+   model_id_map = {
+    "Gemini 2.5 Pro (고성능)": "gemini-2.5-pro-preview-05-06",
+    "Gemini 2.0 Flash (고속)": "gemini-2.0-flash"
+}
     selected_model = model_id_map[selected_model_alias]
     
     if st.button("대화 기록 초기화"):
